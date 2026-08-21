@@ -1,0 +1,16 @@
+{
+  "name": "ai-resume-homepage-generator",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Upload a PDF resume, use OpenAI to extract structured profile data, and publish a personal homepage with Vercel Blob.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node local-server.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "^1.1.1",
+    "openai": "^5.0.0"
+  }
+}

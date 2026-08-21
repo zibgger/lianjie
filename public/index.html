@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 简历 → 个人主页生成器</title>
+<style>
+:root{--ink:#10233d;--muted:#66768d;--accent:#237796;--line:#dfe7ed;--bg:#f5f8fa}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#f8fbfd,#edf5f7);color:var(--ink);font-family:Inter,"Microsoft YaHei",Arial,sans-serif}
+.wrap{max-width:960px;margin:auto;padding:60px 22px}.hero{text-align:center}.badge{display:inline-block;padding:8px 14px;border-radius:999px;background:#e7f3f6;color:#25647b;font-weight:700}.hero h1{font-size:48px;line-height:1.15;margin:18px 0 12px}.hero p{color:var(--muted);font-size:18px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:26px;padding:32px;margin-top:34px;box-shadow:0 18px 50px rgba(25,50,75,.08)}
+.drop{border:2px dashed #b8ccd7;border-radius:20px;padding:48px 20px;text-align:center;cursor:pointer;transition:.2s;background:#fbfdfe}.drop:hover,.drop.drag{border-color:var(--accent);background:#f3fafc}.icon{font-size:48px}.drop strong{display:block;font-size:20px;margin:10px 0}.muted{color:var(--muted)}input[type=file]{display:none}.file{margin-top:14px;font-weight:700;color:var(--accent)}
+button{width:100%;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:17px;font-weight:700;padding:15px 20px;cursor:pointer;margin-top:22px}button:disabled{opacity:.5;cursor:not-allowed}
+.note{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.6}.result{display:none;margin-top:24px;padding:22px;border-radius:18px;background:#f1f8fa;border:1px solid #cfe3e9}.result a{word-break:break-all;color:var(--accent);font-weight:700}.error{display:none;margin-top:18px;color:#a33;background:#fff1f1;border:1px solid #f0caca;border-radius:14px;padding:15px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}.step{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px}.step b{display:block;margin-bottom:7px}
+@media(max-width:700px){.hero h1{font-size:36px}.steps{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="hero">
+<span class="badge">AI Academic Homepage</span>
+<h1>一份 PDF，自动生成个人主页</h1>
+<p>上传你的个人简历 PDF，让 AI 自动提取教育、科研、工作、技能和论文信息，并生成可分享的个人主页链接。</p>
+</header>
+
+<section class="panel">
+<label class="drop" id="drop">
+  <input id="file" type="file" accept="application/pdf,.pdf">
+  <div class="icon">📄</div>
+  <strong>点击选择 PDF，或拖拽到这里</strong>
+  <div class="muted">建议 PDF 不超过 4 MB</div>
+  <div class="file" id="filename"></div>
+</label>
+
+<button id="generate" disabled>✨ AI 分析简历并生成个人主页</button>
+<div class="note">PDF 会发送到 AI 服务进行解析。不要上传包含你不希望处理的敏感信息的文件。API Key 不会出现在浏览器端。</div>
+
+<div class="error" id="error"></div>
+<div class="result" id="result">
+  <strong>🎉 个人主页生成成功！</strong>
+  <p><a id="resultLink" target="_blank" rel="noreferrer"></a></p>
+  <button id="copy" type="button">复制主页链接</button>
+</div>
+</section>
+
+<div class="steps">
+<div class="step"><b>① 上传 PDF</b><span class="muted">选择你的个人简历</span></div>
+<div class="step"><b>② AI 自动分析</b><span class="muted">提取结构化个人资料</span></div>
+<div class="step"><b>③ 获得主页链接</b><span class="muted">生成可直接分享的网页</span></div>
+</div>
+</div>
+
+<script>
+const fileInput=document.getElementById("file");
+const drop=document.getElementById("drop");
+const filename=document.getElementById("filename");
+const button=document.getElementById("generate");
+const errorBox=document.getElementById("error");
+const result=document.getElementById("result");
+const resultLink=document.getElementById("resultLink");
+let selectedFile=null;
+
+function selectFile(file){
+  if(!file) return;
+  if(file.type!=="application/pdf" && !file.name.toLowerCase().endsWith(".pdf")){
+    showError("请选择 PDF 文件。"); return;
+  }
+  if(file.size>4*1024*1024){
+    showError("PDF 超过 4 MB。为了适配 Vercel Serverless Function，请压缩 PDF 后再上传。"); return;
+  }
+  selectedFile=file; filename.textContent="已选择：" + file.name;
+  button.disabled=false; hideError(); result.style.display="none";
+}
+function showError(msg){errorBox.textContent=msg;errorBox.style.display="block"}
+function hideError(){errorBox.style.display="none"}
+
+fileInput.addEventListener("change",e=>selectFile(e.target.files[0]));
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("drag")}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("drag")}));
+drop.addEventListener("drop",e=>selectFile(e.dataTransfer.files[0]));
+
+button.addEventListener("click",async()=>{
+  if(!selectedFile)return;
+  button.disabled=true; button.textContent="正在分析简历，请稍候…"; hideError(); result.style.display="none";
+  try{
+    const res=await fetch("/api",{method:"POST",headers:{"Content-Type":"application/pdf"},body:await selectedFile.arrayBuffer()});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||"生成失败");
+    resultLink.href=data.url; resultLink.textContent=data.url; result.style.display="block";
+  }catch(err){showError(err.message||"生成失败，请稍后重试。")}
+  finally{button.disabled=false;button.textContent="✨ AI 分析简历并生成个人主页"}
+});
+
+document.getElementById("copy").addEventListener("click",async()=>{
+  try{await navigator.clipboard.writeText(resultLink.href);document.getElementById("copy").textContent="已复制 ✓";setTimeout(()=>document.getElementById("copy").textContent="复制主页链接",1600)}
+  catch{showError("复制失败，请手动复制上面的链接。")}
+});
+</script>
+</body>
+</html>

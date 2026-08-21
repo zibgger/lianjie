@@ -1,0 +1,13 @@
+module.exports = {
+  version: 2,
+
+  routes: [
+    {
+      src: "/api/(.*)",
+      dest: "/api/index.js"
+    },
+    {
+      handle: "filesystem"
+    }
+  ]
+};
